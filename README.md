@@ -1,6 +1,6 @@
-# anagrams
+# anagram-generator
 
-FIXME: description
+Generate multi-word anagrams for a given input phrase. On average, the number of anagrams gorws (at least) exponentially with the size of the input phrase, so long phrases are out of the picture without more constraints. 
 
 ## Installation
 
@@ -19,14 +19,6 @@ FIXME: listing of options this app accepts.
 ## Examples
 
 ...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
 
 ## License
 
