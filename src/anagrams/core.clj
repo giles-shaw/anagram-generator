@@ -26,9 +26,9 @@
   (into {} (filter (fn [[_ v]] (> v 0)))
         (reduce #(update %1 %2 dec) char-freqs (char-array word))))
 
-(defn drop-impossible-words
-  [phrase-freqs wordlist]
-  (filter #(->> % frequencies (is-in phrase-freqs)) wordlist))
+(defn filter-wordlist
+  [allowed-chars wordlist]
+  (filter #(is-in allowed-chars (frequencies %)) wordlist))
 
 
 ;;
@@ -47,65 +47,76 @@
 ;anagrams
 ;;
 
-(defn contained-words [prefix phrase-chars dictionary-trie]
-  (let [remaining-phrase-chars (->> phrase-chars
-                                    (filter (fn [[_ ct]] (> ct 0)))
-                                    (into {}))
-        prefix-compatible-dict (query-trie dictionary-trie prefix)
-        options                (apply
-                                 clojure.set/intersection
-                                 (map (comp set keys)
-                                      [remaining-phrase-chars prefix-compatible-dict]))
-        current-word           (if (:word prefix-compatible-dict) #{(:word prefix-compatible-dict)} #{})]
-    (clojure.set/union
-      current-word
-      (apply clojure.set/union
-             (map #(contained-words (str prefix %)
-                                     (update phrase-chars % dec)
-                                     dictionary-trie)
-                  options)))))
+(defn contained-words [prefix phrase-chars dictionary]
+  (let [phrase-chars    (->> phrase-chars
+                             (filter (fn [[_ ct]] (> ct 0)))
+                             (into {}))
+        prefixed-dict   (query-trie dictionary prefix)
+        options         (apply clojure.set/intersection
+                               (map (comp set keys) [phrase-chars prefixed-dict]))
+        successor-words (apply clojure.set/union
+                               (map #(contained-words (str prefix %)
+                                                      (update phrase-chars % dec)
+                                                      dictionary)
+                                    options))]
+    (if (:word prefixed-dict) (conj successor-words prefix) successor-words)))
 
 
-(defn accumulator-successors [[accumulator remainder] dictionary]
+(defn next-word-transfers [[accumulator remainder] dictionary]
   (if (empty? remainder) [[accumulator remainder]]
-    (let [words (contained-words "" remainder dictionary)
-          remainders (map (partial subtract-word remainder) words)
-          accumulators (map #(update accumulator % (fn [v] (if (nil? v) 1 (inc v)))) words)]
+    (let [words        (contained-words "" remainder dictionary)
+          remainders   (map (partial subtract-word remainder) words)
+          accumulators (map (fn [w] (update accumulator w #(inc (or % 0)))) words)]
       (map vector accumulators remainders))))
 
-(defn anagram-step [accumulator-remainder-pairs dictionary]
-  (reduce into #{}
-          (map #(accumulator-successors % dictionary)
-               (filter (fn [[_ r]] (some? r)) accumulator-remainder-pairs))))
+(defn update-accumulators 
+  "Returns the set of all (accumulator, remainder) pairs that can result from
+  transferring a word from each remainder in `accumulator-remainder-pairs` to the
+  corresponding accumulator. Pairs in `accumulator-remainder-pairs` whose remainder is
+  nonempty but does not contain any words in `dictionary` are removed, and pairs whose
+  remainder is empty are carried forward without change."
+  [accumulator-remainder-pairs dictionary]
+  (let [updates (map #(next-word-transfers % dictionary)
+                     accumulator-remainder-pairs)] 
+  (reduce into #{} updates)))  ; remove repetitions
 
 (defn anagram-steps
-  [accumulator-remainder-pairs dictionary]
-  (if (every? empty? (map second accumulator-remainder-pairs))
-    (map first accumulator-remainder-pairs)
-    (recur (anagram-step accumulator-remainder-pairs dictionary) dictionary)))
+  [pairs dictionary]
+  (let [accumulations (map first pairs)
+        remainders    (map second pairs)]
+  (if (every? empty? remainders) accumulations
+    (recur (update-accumulators pairs dictionary) dictionary))))
 
-(defn render [phrase-dict]
-  (let [repetitions (map #(apply repeat (reverse %)) phrase-dict)]
+; (defn anagram-steps [pairs dictionary]
+;   (let [steps (iterate #(update-accumulators % dictionary) pairs)
+;         some-non-empty-remainder? (fn [acc-remainder-pairs]
+;                                     (some? (map (comp seq :remainder)
+;                                                 acc-remainder-pairs)))]
+;     (map :accumulator
+;          (first (drop-while some-non-empty-remainder? steps)))))
+
+(defn render [word-dict]
+  (let [repetitions (map #(apply repeat (reverse %)) word-dict)]
     (->> repetitions flatten sort (interpose " ") (apply str))))
 
-(defn anagrams [phrase dictionary]
-  (let [char-freqs (-> phrase preprocess frequencies)]
-    (sort (map render (anagram-steps #{[{} char-freqs]} dictionary)))))
+(defn anagrams [phrase-chars dictionary]
+  (sort (map render (anagram-steps #{[{} phrase-chars]} dictionary))))
 
 (defn main
   [phrase]
-  (let [dictionary (make-trie (drop-impossible-words
-                                (frequencies (preprocess phrase)) (load-dict)))
-        anagrams (anagrams phrase dictionary)]
+  (let [phrase-chars (-> phrase preprocess frequencies)
+        dictionary   (->> (load-dict) (filter-wordlist phrase-chars) make-trie)
+        anagrams (anagrams phrase-chars dictionary)]
    (apply str (interpose "\n" anagrams))))
-
 
 ;;
 ;test examples
 ;;
-; (def test-phrase "rearrange me")
-; (def filtered-dict (make-trie (drop-impossible-words (frequencies test-phrase) (load-dict))))
-; (count (anagrams test-phrase filtered-dict))
+; (def test-phrase "parmesan")
+; (def phrase-chars (frequencies (preprocess test-phrase)))
+; (def filtered-dict (make-trie (filter-wordlist phrase-chars (load-dict))))
+; (count (anagrams phrase-chars filtered-dict))
+; (first (anagrams phrase-chars filtered-dict))
 
 ; (time (main test-phrase))
 ; (println (main test-phrase))
