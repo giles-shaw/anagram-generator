@@ -22,13 +22,11 @@
     (->> word
          frequencies
          (map (fn [[ch ct]] (>= (get char-freqs ch 0) ct)))
-         (every? true?))
-  ; (every? true? (map (fn [[k v]](>= (get char-freqs k 0) v)) (frequencies word)))
-  )
+         (every? true?)))
 
 (defn subtract-word [char-freqs word]
-  (into {} (filter (fn [[_ v]] (> v 0)))
-        (reduce #(update %1 %2 dec) char-freqs (char-array word))))
+  (into {} (filter (fn [[_ v]] (> v 0))
+                   (reduce #(update %1 %2 dec) char-freqs word))))
 
 (defn filter-wordlist
   [allowed-chars wordlist]
@@ -52,28 +50,26 @@
 ;;
 
 (defn contained-words 
-  "Returns the set of words in `dictionary` beginning with `prefix` which can
-  be constructed from `phrase-chars`."
-  [prefix phrase-chars dictionary]
-  (let [phrase-chars    (->> phrase-chars
-                             (filter (fn [[_ ct]] (> ct 0)))
-                             (into {}))
-        prefixed-dict   (query-trie dictionary prefix)
-        options         (apply clojure.set/intersection
-                               (map (comp set keys) [phrase-chars prefixed-dict]))
-        successor-words (apply clojure.set/union
-                               (map #(contained-words (str prefix %)
-                                                      (update phrase-chars % dec)
-                                                      dictionary)
-                                    options))]
-    (if (:word prefixed-dict) (conj successor-words prefix) successor-words)))
+  "Returns the sequence of words in `dictionary` beginning with `prefix`
+  (including `prefix`, if it's a valid word) which can be constructed from
+  `phrase-chars`."
+  ([phrase-chars dictionary] (contained-words phrase-chars dictionary ""))
+  ([phrase-chars dictionary prefix]
+  (let [prefixed-dict     (query-trie dictionary prefix)
+        option-chars      (apply clojure.set/intersection
+                                 (map (comp set keys) [phrase-chars prefixed-dict]))
+        next-prefixes     (map #(str prefix %) option-chars)
+        next-phrase-chars (map #(update phrase-chars % dec) option-chars)
+        successor-words   (flatten (map #(contained-words %1 dictionary %2)
+                                        next-phrase-chars next-prefixes))]
+      (if (:word prefixed-dict) (conj successor-words prefix) successor-words))))
 
 (defn next-word-transfers
   "Returns a sequence of all `{:keys [accumulator remainder]}` maps that result from
   transferring a valid word from `remainder` to `accumulator`."
   [{:keys [accumulator remainder] :as pair} dictionary]
   (if (empty? remainder) [pair]
-    (let [words        (contained-words "" remainder dictionary)
+    (let [words        (contained-words remainder dictionary "")
           remainders   (map (partial subtract-word remainder) words)
           accumulators (map (fn [w] (update accumulator w #(inc (or % 0)))) words)]
       (map #(zipmap [:accumulator :remainder] [%1 %2]) accumulators remainders))))
@@ -92,14 +88,14 @@
 
 (defn anagrams
   "Returns the sequence of all frequency maps whose keys are words from
-  `dictionary` which can be be constructed using characters from `phrase-chars`
-  without replacement,"
+  `dictionary` and which can be be constructed using characters from
+  `phrase-chars` without replacement."
   [phrase-chars dictionary]
-  (let [init-pairs #{{:accumulator {} :remainder phrase-chars}}
-        steps      (iterate #(update-accumulators % dictionary) init-pairs)
-        remainder? (fn [acc-remainder-pairs]
-                     (some seq (map :remainder acc-remainder-pairs)))]
-    (map :accumulator (first (drop-while remainder? steps)))))
+  (let [init-pairs      #{{:accumulator {} :remainder phrase-chars}}
+        steps           (iterate #(update-accumulators % dictionary) init-pairs)
+        some-remainder? (fn [acc-remainder-pairs]
+                          (some seq (map :remainder acc-remainder-pairs)))]
+    (map :accumulator (first (drop-while some-remainder? steps)))))
 
 
 ;;
