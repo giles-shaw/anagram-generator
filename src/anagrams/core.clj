@@ -25,7 +25,7 @@
          (every? true?)))
 
 (defn subtract-word [char-freqs word]
-  (into {} (filter (fn [[_ v]] (> v 0))
+  (into {} (filter (fn [[_ ct]] (> ct 0))
                    (reduce #(update %1 %2 dec) char-freqs word))))
 
 (defn filter-wordlist
@@ -50,9 +50,9 @@
 ;;
 
 (defn contained-words 
-  "Returns the sequence of words in `dictionary` beginning with `prefix`
-  (including `prefix`, if it's a valid word) which can be constructed from
-  `phrase-chars`."
+  "Returns a sequence of all words in `dictionary` which can be constructed
+  from `phrase-chars`. If `prefix` is supplied, only words beginning with
+  `prefix` (potentially including `prefix` if it's a valid word) are returned."
   ([phrase-chars dictionary] (contained-words phrase-chars dictionary ""))
   ([phrase-chars dictionary prefix]
   (let [prefixed-dict     (query-trie dictionary prefix)
@@ -65,8 +65,8 @@
       (if (:word prefixed-dict) (conj successor-words prefix) successor-words))))
 
 (defn next-word-transfers
-  "Returns a sequence of all `{:keys [accumulator remainder]}` maps that result from
-  transferring a valid word from `remainder` to `accumulator`."
+  "Returns a sequence of all `{:keys [accumulator remainder]}` maps which
+  results from transferring a valid word from `remainder` to `accumulator`."
   [{:keys [accumulator remainder] :as pair} dictionary]
   (if (empty? remainder) [pair]
     (let [words        (contained-words remainder dictionary "")
@@ -87,7 +87,7 @@
   (reduce into #{} updates)))  ; deduplicate
 
 (defn anagrams
-  "Returns the sequence of all frequency maps whose keys are words from
+  "Returns a sequence of all frequency maps whose keys are words from
   `dictionary` and which can be be constructed using characters from
   `phrase-chars` without replacement."
   [phrase-chars dictionary]
@@ -103,7 +103,7 @@
 ;;
 
 (defn render-anagram [word-dict]
-  (let [repetitions (map #(apply repeat (reverse %)) word-dict)]
+  (let [repetitions (map (fn [[wd ct]] (repeat ct wd)) word-dict)]
     (->> repetitions flatten sort (interpose " ") (apply str))))
 
 (defn render [anagram-list]
@@ -126,5 +126,5 @@
 ; (count (anagrams phrase-chars filtered-dict))
 ; (first (anagrams phrase-chars filtered-dict))
 
-; (time (main test-phrase))
-(println (main test-phrase))
+(time (main test-phrase))
+; (println (main test-phrase))
