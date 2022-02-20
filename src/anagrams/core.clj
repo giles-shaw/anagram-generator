@@ -24,10 +24,6 @@
          (map (fn [[ch ct]] (>= (get char-freqs ch 0) ct)))
          (every? true?)))
 
-(defn subtract-word [char-freqs word]
-  (into {} (filter (fn [[_ ct]] (> ct 0))
-                   (reduce #(update %1 %2 dec) char-freqs word))))
-
 (defn filter-wordlist
   [allowed-chars wordlist]
   (filter (partial constructible? allowed-chars) wordlist))
@@ -43,6 +39,11 @@
 (defn make-trie [words] (reduce update-trie {} words))
 
 (defn query-trie [trie word] (get-in trie word))
+
+(defn subtract-word [char-freqs word]
+  (into {} (filter (fn [[_ ct]] (> ct 0))
+                   (reduce #(update %1 %2 dec) char-freqs word))))
+
 
 
 ;;
@@ -86,7 +87,7 @@
                      accumulator-remainder-pairs)] 
   (reduce into #{} updates)))  ; deduplicate
 
-(defn anagrams
+(defn _anagrams
   "Returns a sequence of all frequency maps whose keys are words from
   `dictionary` and which can be be constructed using characters from
   `phrase-chars` without replacement."
@@ -96,6 +97,12 @@
         some-remainder? (fn [acc-remainder-pairs]
                           (some seq (map :remainder acc-remainder-pairs)))]
     (map :accumulator (first (drop-while some-remainder? steps)))))
+
+(defn anagrams
+  [phrase]
+  (let [phrase-chars (-> phrase preprocess frequencies)
+        dictionary   (->> (load-dict) (filter-wordlist phrase-chars) make-trie)]
+   (_anagrams phrase-chars dictionary)))
 
 
 ;;
@@ -109,22 +116,27 @@
 (defn render [anagram-list]
   (->> anagram-list (map render-anagram) sort (interpose "\n") (apply str)))
 
-(defn main
-  [phrase]
-  (let [phrase-chars (-> phrase preprocess frequencies)
-        dictionary   (->> (load-dict) (filter-wordlist phrase-chars) make-trie)
-        results      (anagrams phrase-chars dictionary)]
-   (render results)))
+(defn main [phrase] (render (anagrams phrase)))
 
 
 ;;
 ;test examples
 ;;
-(def test-phrase "parmesan")
+
+; (def test-phrase "person")
 ; (def phrase-chars (frequencies (preprocess test-phrase)))
 ; (def filtered-dict (make-trie (filter-wordlist phrase-chars (load-dict))))
-; (count (anagrams phrase-chars filtered-dict))
-; (first (anagrams phrase-chars filtered-dict))
-
-(time (main test-phrase))
+; (count (_anagrams phrase-chars filtered-dict))
+; (time (main test-phrase))
 ; (println (main test-phrase))
+
+; (def words (take 100 (shuffle (load-dict))))
+; (def sample (take 20 words))
+; sample
+; (def anagram-list (map anagrams sample))
+; (apply max (map count anagram-list))
+; (let [cts  (butlast (sort (map count anagram-list)))] (float (/ (apply + cts) (count cts))))
+; (count anagram-list)
+
+; (float (/ (apply + (map count anagram-list)) (count anagram-list)))
+
