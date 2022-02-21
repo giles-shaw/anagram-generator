@@ -45,7 +45,6 @@
                    (reduce #(update %1 %2 dec) char-freqs word))))
 
 
-
 ;;
 ;anagrams
 ;;
@@ -60,7 +59,7 @@
         option-chars      (apply clojure.set/intersection
                                  (map (comp set keys) [phrase-chars prefixed-dict]))
         next-prefixes     (map #(str prefix %) option-chars)
-        next-phrase-chars (map #(update phrase-chars % dec) option-chars)
+        next-phrase-chars (map #(subtract-word phrase-chars (str %)) option-chars)
         successor-words   (flatten (map #(contained-words %1 dictionary %2)
                                         next-phrase-chars next-prefixes))]
       (if (:word prefixed-dict) (conj successor-words prefix) successor-words))))
@@ -123,20 +122,17 @@
 ;test examples
 ;;
 
-; (def test-phrase "person")
+(def test-phrase "parmesan")
 ; (def phrase-chars (frequencies (preprocess test-phrase)))
 ; (def filtered-dict (make-trie (filter-wordlist phrase-chars (load-dict))))
+; (println (interpose "\n" (contained-words phrase-chars filtered-dict)))
 ; (count (_anagrams phrase-chars filtered-dict))
 ; (time (main test-phrase))
-; (println (main test-phrase))
+(println (main test-phrase))
 
 ; (def words (take 100 (shuffle (load-dict))))
-; (def sample (take 20 words))
+; (def sample (take 5 words))
 ; sample
 ; (def anagram-list (map anagrams sample))
 ; (apply max (map count anagram-list))
-; (let [cts  (butlast (sort (map count anagram-list)))] (float (/ (apply + cts) (count cts))))
-; (count anagram-list)
-
 ; (float (/ (apply + (map count anagram-list)) (count anagram-list)))
-
